@@ -22,7 +22,8 @@ acs <- get_acs(geography = "tract",
         variables = c("B19013_001", "B01003_001", "C17002_002", "C17002_003", "C17002_004", "C17002_005"), 
         state = "MN", 
         year = 2021, 
-        geometry = TRUE) |> 
+        geometry = TRUE, 
+        survey = "acs5") |> 
   st_transform(4326)
 
 income <- acs |> 
@@ -159,6 +160,29 @@ pov_150_comparison <- poverty_150_overlap |>
 
 pov_150_comparison |> 
   ggplot() + aes(x = pov_150_percent, color = xcel) + geom_density() 
+
+```
+
+&nbsp;
+&nbsp;
+
+Check county level median income levels 
+
+```{r, echo = FALSE}
+
+get_acs(geograph = "county", 
+        variables = "B19013_001", 
+        state = "MN", 
+        year = 2021, 
+        survey = "acs5") |> 
+  mutate(county = str_replace(NAME, ", Minnesota", "")) |> 
+  select(county, estimate) |> 
+  mutate(metro = county %in% c("Carver County", "Ramsey County", "Hennepin County", "Scott County", "Washington County", "Anoka County", 
+                               "Dakota County")) |> 
+  arrange(desc(estimate)) |> 
+  slice(1:20) |> 
+  ggplot() + aes(x = estimate, y = fct_reorder(county, estimate), fill = metro) + geom_col() 
+
 
 ```
 
