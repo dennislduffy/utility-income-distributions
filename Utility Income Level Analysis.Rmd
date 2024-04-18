@@ -10,6 +10,8 @@ library(sf)
 library(janitor)
 library(tidycensus)
 
+options(scipen = 999)
+
 vars <- load_variables(2021, "acs5")
 
 #Median household income: "B19013_001"
@@ -20,37 +22,108 @@ acs <- get_acs(geography = "tract",
         variables = c("B19013_001", "B01003_001", "C17002_002", "C17002_003", "C17002_004", "C17002_005"), 
         state = "MN", 
         year = 2021, 
-        geometry = TRUE)
+        geometry = TRUE) |> 
+  st_transform(4326)
 
 income <- acs |> 
-  filter(variable == "B19013_001")
+  filter(variable == "B19013_001") |> 
+  mutate(tract_area = as.numeric(units::set_units(st_area(geometry), km^2)))
 
 pov_pop <- acs |> 
   filter(variable == "B01003_001") |> 
   tibble() |> 
   select(GEOID, estimate) |> 
-  rename(total_pop = estimate)
+  rename(total_pop = estimate) 
 
 poverty_100 <- acs |> 
   filter(variable %in% c("C17002_002", "C17002_003")) |> 
   group_by(GEOID) |> 
   summarize(estimate = sum(estimate)) |> 
   left_join(pov_pop, by = "GEOID") |> 
-  mutate(pov_100_percent = estimate / total_pop)
+  mutate(pov_100_percent = estimate / total_pop) |> 
+  mutate(tract_area = as.numeric(units::set_units(st_area(geometry), km^2)))
 
 poverty_150 <- acs |> 
   filter(variable != "B19013_001" & variable != "B01003_001") |> 
   group_by(GEOID) |> 
   summarize(estimate = sum(estimate)) |> 
   left_join(pov_pop, by = "GEOID") |> 
-  mutate(pov_150_percent = estimate / total_pop)
+  mutate(pov_150_percent = estimate / total_pop) |> 
+  mutate(tract_area = as.numeric(units::set_units(st_area(geometry), km^2)))
+
+#make separate table of tract areas
+
+tract_areas <- income |> 
+  select(GEOID, tract_area)
+
 
 #pull utility service areas
 
 utilities <- st_read("../util_gdb/eusa.gdb") |> 
+  st_transform(4326) |> 
   select(mpuc_name) |> 
-  filter(complete.cases(mpuc_name))
+  filter(complete.cases(mpuc_name)) |> 
+  mutate(utility_area = as.numeric(units::set_units(st_area(Shape), km^2)))
 
+#Define area finder
+
+utility_area_finder <- function(id, util){
+  
+  tract <- tract_areas |> 
+    filter(GEOID == id) 
+  
+  utility_area <- utilities |> 
+    filter(mpuc_name == util) |> 
+    select(mpuc_name)
+  
+  area <- suppressWarnings(sum(as.numeric(units::set_units(st_area(st_intersection(tract, utility_area, dimension = "polygon")), km^2))))
+  
+  return(area)
+  
+}
+
+overlap <- income |> 
+  st_join(utilities) |> 
+  arrange(mpuc_name) |> 
+  select(GEOID, mpuc_name) |> 
+  distinct() |> 
+  mutate(area = map2_dbl(GEOID, mpuc_name, suppressWarnings(utility_area_finder))) |> 
+  tibble() |> 
+  select(GEOID, mpuc_name, area)
+
+#define function to combine data sets
+
+combiner <- function(set1, set2){
+  
+  set1 |> 
+    left_join(set2, by = "GEOID") |> 
+    mutate(utility_share = area / tract_area) |> 
+    tibble() |> 
+    group_by(GEOID) |> 
+    mutate(big_utility = utility_share == max(utility_share)) |> 
+    filter(big_utility == TRUE) 
+
+}
+
+income_overlap <- combiner(overlap, income) |> 
+  select(GEOID, mpuc_name, estimate)
+
+poverty_100_overlap <- combiner(overlap, poverty_100) |> 
+  select(GEOID, mpuc_name, estimate, pov_100_percent)
+
+poverty_150_overlap <- combiner(overlap, poverty_150) |> 
+  select(GEOID, mpuc_name, estimate, pov_150_percent)
 
 ```
+
+
+
+
+
+
+
+
+
+
+
 
