@@ -5,5 +5,46 @@ output: html_notebook
 
 ```{r, echo = FALSE}
 
+library(tidyverse)
+library(sf)
+library(janitor)
+library(tidycensus)
+
+vars <- load_variables(2021, "acs5")
+
+#Median household income: "B19013_001"
+#Poverty vars 0:100 percent of poverty: C17002_002, C17002_003
+#Poverty vars 100:150 percent of poverty: C17002_004, C17002_005
+
+acs <- get_acs(geography = "tract", 
+        variables = c("B19013_001", "B01003_001", "C17002_002", "C17002_003", "C17002_004", "C17002_005"), 
+        state = "MN", 
+        year = 2021, 
+        geometry = TRUE)
+
+income <- acs |> 
+  filter(variable == "B19013_001")
+
+pov_pop <- acs |> 
+  filter(variable == "B01003_001") |> 
+  tibble() |> 
+  select(GEOID, estimate) |> 
+  rename(total_pop = estimate)
+
+poverty_100 <- acs |> 
+  filter(variable %in% c("C17002_002", "C17002_003")) |> 
+  group_by(GEOID) |> 
+  summarize(estimate = sum(estimate)) |> 
+  left_join(pov_pop, by = "GEOID") |> 
+  mutate(pov_100_percent = estimate / total_pop)
+
+poverty_150 <- acs |> 
+  filter(variable != "B19013_001" & variable != "B01003_001") |> 
+  group_by(GEOID) |> 
+  summarize(estimate = sum(estimate)) |> 
+  left_join(pov_pop, by = "GEOID") |> 
+  mutate(pov_150_percent = estimate / total_pop)
+
+
 ```
 
