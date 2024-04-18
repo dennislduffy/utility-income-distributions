@@ -117,10 +117,50 @@ poverty_150_overlap <- combiner(overlap, poverty_150) |>
 ```
 
 
+Examine income distribution between areas attributed to Xcel and areas attributed to other utilities 
 
+```{r, echo = FALSE}
 
+income_comparison <- income_overlap |> 
+  mutate(xcel = mpuc_name == "Xcel Energy") 
 
+income_comparison |> 
+  ggplot() + aes(x = estimate, color = xcel) + geom_density()
+  
+m1 <- lm(estimate ~ xcel, data = income_comparison)
 
+summary(m1)
+
+```
+
+&nbsp;
+&nbsp;
+
+Examine poverty distribution in utility territories (100 percent poverty level)
+
+```{r, echo = TRUE}
+
+pov_100_comparison <- poverty_100_overlap |> 
+  mutate(xcel = mpuc_name == "Xcel Energy")
+
+pov_100_comparison |> 
+  ggplot() + aes(x = pov_100_percent, color = xcel) + geom_density() 
+```
+
+&nbsp;
+&nbsp;
+
+Examine poverty distribution in utility territories (150 percent poverty level)
+
+```{r, echo = FALSE}
+
+pov_150_comparison <- poverty_150_overlap |> 
+  mutate(xcel = mpuc_name == "Xcel Energy")
+
+pov_150_comparison |> 
+  ggplot() + aes(x = pov_150_percent, color = xcel) + geom_density() 
+
+```
 
 
 
