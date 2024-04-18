@@ -45,6 +45,12 @@ poverty_150 <- acs |>
   left_join(pov_pop, by = "GEOID") |> 
   mutate(pov_150_percent = estimate / total_pop)
 
+#pull utility service areas
+
+utilities <- st_read("../util_gdb/eusa.gdb") |> 
+  select(mpuc_name) |> 
+  filter(complete.cases(mpuc_name))
+
 
 ```
 
